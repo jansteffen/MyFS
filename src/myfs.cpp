@@ -82,17 +82,20 @@ int MyFS::fuseGetattr(const char *path, struct stat *statbuf) {
         statbuf->st_mode = S_IFDIR | 0755;
         statbuf->st_nlink = 2; // Why "two" hardlinks instead of "one"? The answer is here: http://unix.stackexchange.com/a/101536
     }
-    else if ( strcmp( path, "/file54" ) == 0 || ( strcmp( path, "/file349" ) == 0 ) )
-    {
-        statbuf->st_mode = S_IFREG | 0644;
-        statbuf->st_nlink = 1;
-        statbuf->st_size = 1024;
+    else {
+        for (int i = 0; i < NUM_DIR_ENTRIES; i++) {
+            if(strcmp(path+1, files[i].name) == 0) {
+                statbuf->st_mode = S_IFREG | 0644;
+                statbuf->st_nlink = 1;
+                statbuf->st_size = 1024;
+                RETURN(ret);
+            }
+        }
+        ret = -ENOENT;
     }
-    else
-        ret= -ENOENT;
-
     RETURN(ret);
 }
+
 
 int MyFS::fuseReadlink(const char *path, char *link, size_t size) {
     LOGM();
@@ -101,9 +104,21 @@ int MyFS::fuseReadlink(const char *path, char *link, size_t size) {
 
 int MyFS::fuseMknod(const char *path, mode_t mode, dev_t dev) {
     LOGM();
-    
     // TODO: Implement this!
-    
+    int freeSpaceIndex = -1;
+    for (int i = 0; i < NUM_DIR_ENTRIES; i++) {
+        if(strcmp(path+1,files[i].name) == 0) {
+            RETURN(-EEXIST);
+        }
+        if (!files[i].name) {
+            freeSpaceIndex = i;
+        }
+    }
+    if(freeSpaceIndex == -1) {
+        RETURN(-ENOSPC);
+    }
+    strcpy(files[freeSpaceIndex].name, path+1);
+    files[freeSpaceIndex].mode=mode;
     RETURN(0);
 }
 
@@ -162,9 +177,25 @@ int MyFS::fuseUtime(const char *path, struct utimbuf *ubuf) {
 
 int MyFS::fuseOpen(const char *path, struct fuse_file_info *fileInfo) {
     LOGM();
-    
-    // TODO: Implement this!
-    
+
+    int foundIndex = -1;
+    for (int i = 0; i < NUM_DIR_ENTRIES; i++) {
+        if(strcmp(path+1,files[i].name) == 0) {
+            foundIndex = i;
+            break;
+        }
+    }
+    if(foundIndex == -1)  {
+        RETURN(-ENOENT);
+    }
+
+    for (int j = 0; j < NUM_OPEN_FILES; j++) {
+        if(fileHandles[j] == foundIndex) {
+            RETURN(-EMFILE);
+        }
+    }
+
+
     RETURN(0);
 }
 
@@ -256,8 +287,14 @@ int MyFS::fuseReaddir(const char *path, void *buf, fuse_fill_dir_t filler, off_t
 
     if ( strcmp( path, "/" ) == 0 ) // If the user is trying to show the files/directories of the root directory show the following
     {
-        filler( buf, "file54", NULL, 0 );
-        filler( buf, "file349", NULL, 0 );
+        for (int i = 0; i < NUM_DIR_ENTRIES; i++) {
+            if(!files[i].name) {
+                continue;
+            }
+            filler( buf, files[i].name, NULL, 0 );
+        }
+        //filler( buf, "file54", NULL, 0 );
+        //filler( buf, "file349", NULL, 0 );
     }
 
     RETURN(0);
@@ -278,7 +315,14 @@ int MyFS::fuseFsyncdir(const char *path, int datasync, struct fuse_file_info *fi
 
 int MyFS::fuseTruncate(const char *path, off_t offset, struct fuse_file_info *fileInfo) {
     LOGM();
-    RETURN(0);
+    for (int i = 0; i < NUM_DIR_ENTRIES; i++) {
+        if(strcmp(files[i].name, path + 1) == 0) {
+            files[i].size= offset;
+            files[i].data= static_cast<char *>(realloc(files[i].data, files[i].size));
+            RETURN(0);
+        }
+    }
+    RETURN(-ENOENT);
 }
 
 int MyFS::fuseCreate(const char *path, mode_t mode, struct fuse_file_info *fileInfo) {
@@ -291,6 +335,10 @@ int MyFS::fuseCreate(const char *path, mode_t mode, struct fuse_file_info *fileI
 
 void MyFS::fuseDestroy() {
     LOGM();
+    for (int i = 0; i < NUM_DIR_ENTRIES; i++) {
+        free(files[i].data);
+        files[i].size= 0;
+    }
 }
 
 void* MyFS::fuseInit(struct fuse_conn_info *conn) {
@@ -311,6 +359,15 @@ void* MyFS::fuseInit(struct fuse_conn_info *conn) {
         LOGF("Container file name: %s", ((MyFsInfo *) fuse_get_context()->private_data)->contFile);
         
         // TODO: Implement your initialization methods here!
+        for (int i = 0; i < NUM_DIR_ENTRIES; i++) {
+            files[i].size= 1024;
+            //Evlt aendern auf dynamic cast
+            files[i].data= static_cast<char *>(malloc(files[i].size));
+        }
+
+        for (int j = 0; j < NUM_OPEN_FILES; j++) {
+            fileHandles[j] = -1;
+        }
     }
     
     RETURN(0);
@@ -335,5 +392,4 @@ int MyFS::fuseGetxattr(const char *path, const char *name, char *value, size_t s
 }
         
 // TODO: Add your own additional methods here!
-            
 
