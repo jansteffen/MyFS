@@ -26,9 +26,6 @@ struct MyFsFileInfo {
     time_t ctime;
     __mode_t mode;
 };
-MyFsFileInfo files[NUM_DIR_ENTRIES];
 
-
-int64_t fileHandles[NUM_OPEN_FILES];
 
 #endif /* myfs_structs_h */

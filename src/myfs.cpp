@@ -37,6 +37,9 @@
 #include "myfs-info.h"
 
 MyFS* MyFS::_instance = NULL;
+MyFsFileInfo files[NUM_DIR_ENTRIES];
+int64_t fileHandles[NUM_OPEN_FILES];
+
 
 MyFS* MyFS::Instance() {
     if(_instance == NULL) {
