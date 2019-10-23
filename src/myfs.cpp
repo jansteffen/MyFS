@@ -72,8 +72,7 @@ int MyFS::fuseGetattr(const char *path, struct stat *statbuf) {
 
     statbuf->st_uid = getuid(); // The owner of the file/directory is the user who mounted the filesystem
     statbuf->st_gid = getgid(); // The group of the file/directory is the same as the group of the user who mounted the filesystem
-    statbuf->st_atime = time( NULL ); // The last "a"ccess of the file/directory is right now
-    statbuf->st_mtime = time( NULL ); // The last "m"odification of the file/directory is right now
+    statbuf->st_atime = time( NULL ); // The last "access of the file/directory is right now
 
     int ret= 0;
 
@@ -88,6 +87,8 @@ int MyFS::fuseGetattr(const char *path, struct stat *statbuf) {
                 statbuf->st_mode = S_IFREG | 0644;
                 statbuf->st_nlink = 1;
                 statbuf->st_size = 1024;
+                statbuf->st_mtime = files[i].mtime;
+                statbuf->st_ctime = files[i].ctime;
                 RETURN(ret);
             }
         }
@@ -110,7 +111,7 @@ int MyFS::fuseMknod(const char *path, mode_t mode, dev_t dev) {
         if(strcmp(path+1,files[i].name) == 0) {
             RETURN(-EEXIST);
         }
-        if (!files[i].name) {
+        if (!files[i].name && freeSpaceIndex == -1) {
             freeSpaceIndex = i;
         }
     }
@@ -119,6 +120,9 @@ int MyFS::fuseMknod(const char *path, mode_t mode, dev_t dev) {
     }
     strcpy(files[freeSpaceIndex].name, path+1);
     files[freeSpaceIndex].mode=mode;
+    files[freeSpaceIndex].ctime = time(NULL);
+    files[freeSpaceIndex].atime = time(NULL);
+    files[freeSpaceIndex].mtime = time(NULL);
     RETURN(0);
 }
 
@@ -131,7 +135,26 @@ int MyFS::fuseUnlink(const char *path) {
     LOGM();
     
     // TODO: Implement this!
-    
+    int foundIndex = -1;
+    for (int i = 0; i < NUM_DIR_ENTRIES; i++) {
+        if(strcmp(path+1,files[i].name) == 0) {
+            foundIndex = i;
+            break;
+        }
+    }
+    if(foundIndex == -1)  {
+        RETURN(-ENOENT);
+    }
+    for (int j = 0; j < NUM_OPEN_FILES; j++) {
+        if(fileHandles[j] == foundIndex) {
+            fileHandles[j] = -1;
+        }
+    }
+    free(files[foundIndex].name);
+    free(files[foundIndex].data);
+    files[foundIndex].data = static_cast<char *>(malloc(files[foundIndex].size));
+    files[foundIndex].name[0] = '\0';
+
     RETURN(0);
 }
 
@@ -195,43 +218,46 @@ int MyFS::fuseOpen(const char *path, struct fuse_file_info *fileInfo) {
         }
     }
 
+    for(int k = 0; k < NUM_OPEN_FILES; k++) {
+        if(fileHandles[k] == -1) {
+            fileHandles[k] = foundIndex;
+            fileInfo -> fh = k;
+            files[foundIndex].atime = time(NULL);
+            RETURN(0);
+        }
+    }
 
-    RETURN(0);
+    RETURN(-EMFILE);
 }
 
 int MyFS::fuseRead(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fileInfo) {
     LOGM();
     
     // TODO: Implement this!
+    if(fileInfo -> fh < 0 || fileInfo -> fh >= NUM_OPEN_FILES || fileHandles[fileInfo -> fh] == -1) {
+        RETURN(-EBADF);
+    }
 
     LOGF( "--> Trying to read %s, %lu, %lu\n", path, (unsigned long) offset, size );
-
-    char file54Text[] = "Hello World From File54!\n";
-    char file349Text[] = "Hello World From File349!\n";
-    char *selectedText = NULL;
-
-    // ... //
-
-    if ( strcmp( path, "/file54" ) == 0 )
-        selectedText = file54Text;
-    else if ( strcmp( path, "/file349" ) == 0 )
-        selectedText = file349Text;
-    else
-        return -ENOENT;
-
-    // ... //
-
-    memcpy( buf, selectedText + offset, size );
-
-    RETURN((int) (strlen( selectedText ) - offset));
+    memcpy( buf, files[fileHandles[fileInfo->fh]].data + offset, size );
+    files[fileHandles[fileInfo -> fh]].atime = time(NULL);
+    RETURN((int) (strlen( files[fileHandles[fileInfo->fh]].data ) - offset));
 }
 
 int MyFS::fuseWrite(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fileInfo) {
     LOGM();
     
     // TODO: Implement this!
-    
-    RETURN(0);
+    if(fileInfo -> fh < 0 || fileInfo -> fh >= NUM_OPEN_FILES || fileHandles[fileInfo -> fh] == -1) {
+        RETURN(-EBADF);
+    }
+    if(offset+size > files[fileHandles[fileInfo->fh]].size) {
+        RETURN (-ENOSPC);
+    }
+    files[fileHandles[fileInfo -> fh]].atime = time(NULL);
+    files[fileHandles[fileInfo -> fh]].mtime = time(NULL);
+    memcpy(files[fileHandles[fileInfo->fh]].data + offset , buf, size );
+    RETURN(size);
 }
 
 int MyFS::fuseStatfs(const char *path, struct statvfs *statInfo) {
@@ -248,7 +274,10 @@ int MyFS::fuseRelease(const char *path, struct fuse_file_info *fileInfo) {
     LOGM();
     
     // TODO: Implement this!
-    
+    if(fileInfo -> fh < 0 || fileInfo -> fh >= NUM_OPEN_FILES) {
+        RETURN(-EBADF);
+    }
+    fileHandles[fileInfo->fh] = -1;
     RETURN(0);
 }
 
@@ -288,7 +317,7 @@ int MyFS::fuseReaddir(const char *path, void *buf, fuse_fill_dir_t filler, off_t
     if ( strcmp( path, "/" ) == 0 ) // If the user is trying to show the files/directories of the root directory show the following
     {
         for (int i = 0; i < NUM_DIR_ENTRIES; i++) {
-            if(!files[i].name) {
+            if(files[i].name[0] == '\0') {
                 continue;
             }
             filler( buf, files[i].name, NULL, 0 );
@@ -362,7 +391,8 @@ void* MyFS::fuseInit(struct fuse_conn_info *conn) {
         for (int i = 0; i < NUM_DIR_ENTRIES; i++) {
             files[i].size= 1024;
             //Evlt aendern auf dynamic cast
-            files[i].data= static_cast<char *>(malloc(files[i].size));
+            files[i].data = static_cast<char *>(malloc(files[i].size));
+            files[i].name[0] = '\0';
         }
 
         for (int j = 0; j < NUM_OPEN_FILES; j++) {

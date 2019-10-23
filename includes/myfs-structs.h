@@ -29,6 +29,6 @@ struct MyFsFileInfo {
 MyFsFileInfo files[NUM_DIR_ENTRIES];
 
 
-uint64_t fileHandles[NUM_OPEN_FILES];
+int64_t fileHandles[NUM_OPEN_FILES];
 
 #endif /* myfs_structs_h */

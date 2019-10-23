@@ -13,3 +13,7 @@
 #include "myfs.h"
 
 // TODO: Implement your helper functions here!
+TEST_CASE( "FUSE_GET_ATTR", "[myfs]" ) {
+    // setup
+
+}
