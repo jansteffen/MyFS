@@ -89,7 +89,7 @@ int MyFS::fuseGetattr(const char *path, struct stat *statbuf) {
             if(strcmp(path+1, files[i].name) == 0) {
                 statbuf->st_mode = S_IFREG | 0644;
                 statbuf->st_nlink = 1;
-                statbuf->st_size = 1024;
+                statbuf->st_size = files[i].size;
                 statbuf->st_mtime = files[i].mtime;
                 statbuf->st_ctime = files[i].ctime;
                 RETURN(ret);
@@ -155,7 +155,7 @@ int MyFS::fuseUnlink(const char *path) {
     }
     //free(files[foundIndex].name);
     free(files[foundIndex].data);
-    files[foundIndex].data = static_cast<char *>(malloc(files[foundIndex].size));
+	files[foundIndex].data = (char*)malloc((files[foundIndex].size+1)*sizeof(char));
     files[foundIndex].name[0] = '\0';
 
     RETURN(0);
@@ -392,9 +392,9 @@ void* MyFS::fuseInit(struct fuse_conn_info *conn) {
         
         // TODO: Implement your initialization methods here!
         for (int i = 0; i < NUM_DIR_ENTRIES; i++) {
-            files[i].size= 1024;
+            files[i].size = 1024;
             //Evlt aendern auf dynamic cast
-            files[i].data = static_cast<char *>(malloc(files[i].size));
+            files[i].data = (char *)malloc((files[i].size+1)*sizeof(char));
             files[i].name[0] = '\0';
         }
 
