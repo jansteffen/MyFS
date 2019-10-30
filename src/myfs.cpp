@@ -114,7 +114,7 @@ int MyFS::fuseMknod(const char *path, mode_t mode, dev_t dev) {
         if(strcmp(path+1,files[i].name) == 0) {
             RETURN(-EEXIST);
         }
-        if (!files[i].name && freeSpaceIndex == -1) {
+        if (strlen(files[i].name) == 0 && freeSpaceIndex == -1) {
             freeSpaceIndex = i;
         }
     }
