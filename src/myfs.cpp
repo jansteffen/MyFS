@@ -153,7 +153,7 @@ int MyFS::fuseUnlink(const char *path) {
             fileHandles[j] = -1;
         }
     }
-    free(files[foundIndex].name);
+    //free(files[foundIndex].name);
     free(files[foundIndex].data);
     files[foundIndex].data = static_cast<char *>(malloc(files[foundIndex].size));
     files[foundIndex].name[0] = '\0';
