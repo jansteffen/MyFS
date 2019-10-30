@@ -193,7 +193,14 @@ int MyFS::fuseChown(const char *path, uid_t uid, gid_t gid) {
 
 int MyFS::fuseTruncate(const char *path, off_t newSize) {
     LOGM();
-    return 0;
+    for (int i = 0; i < NUM_DIR_ENTRIES; i++) {
+        if(strcmp(files[i].name, path + 1) == 0) {
+            files[i].size = newSize;
+            files[i].data = (char *)(realloc(files[i].data, newSize));
+            RETURN(0);
+        }
+    }
+    RETURN(-ENOENT);
 }
 
 int MyFS::fuseUtime(const char *path, struct utimbuf *ubuf) {
@@ -351,10 +358,11 @@ int MyFS::fuseFsyncdir(const char *path, int datasync, struct fuse_file_info *fi
 
 int MyFS::fuseTruncate(const char *path, off_t offset, struct fuse_file_info *fileInfo) {
     LOGM();
+LOGF("--> Trying to truncate %s with offset %lu\n", path, (unsigned long) offset);
     for (int i = 0; i < NUM_DIR_ENTRIES; i++) {
         if(strcmp(files[i].name, path + 1) == 0) {
-            files[i].size= offset;
-            files[i].data= static_cast<char *>(realloc(files[i].data, files[i].size));
+            files[i].size -= offset;
+            files[i].data = (char *)(realloc(files[i].data, files[i].size - offset));
             RETURN(0);
         }
     }
