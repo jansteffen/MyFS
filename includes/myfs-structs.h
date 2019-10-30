@@ -13,6 +13,7 @@
 #define BLOCK_SIZE 512
 #define NUM_DIR_ENTRIES 64
 #define NUM_OPEN_FILES 64
+#define CONTAINER_SIZE 1048576
 
 // TODO: Add structures of your file system here
 struct MyFsFileInfo {

@@ -254,11 +254,15 @@ int MyFS::fuseWrite(const char *path, const char *buf, size_t size, off_t offset
     if(fileInfo -> fh < 0 || fileInfo -> fh >= NUM_OPEN_FILES || fileHandles[fileInfo -> fh] == -1) {
         RETURN(-EBADF);
     }
-    if(offset+size > files[fileHandles[fileInfo->fh]].size) {
+	LOGF("--> Trying to write %s with size %lu and offset %lu\n", buf, size, (unsigned long) offset);
+    
+    if(offset+size > CONTAINER_SIZE) {
         RETURN (-ENOSPC);
     }
     files[fileHandles[fileInfo -> fh]].atime = time(NULL);
     files[fileHandles[fileInfo -> fh]].mtime = time(NULL);
+	files[fileHandles[fileInfo -> fh]].data = (char *)realloc(files[fileHandles[fileInfo -> fh]].data, files[fileHandles[fileInfo -> fh]].size + size);
+	files[fileHandles[fileInfo -> fh]].size += size;
     memcpy(files[fileHandles[fileInfo->fh]].data + offset , buf, size );
     RETURN(size);
 }
@@ -392,7 +396,7 @@ void* MyFS::fuseInit(struct fuse_conn_info *conn) {
         
         // TODO: Implement your initialization methods here!
         for (int i = 0; i < NUM_DIR_ENTRIES; i++) {
-            files[i].size = 1024;
+            files[i].size = 0;
             //Evlt aendern auf dynamic cast
             files[i].data = (char *)malloc((files[i].size+1)*sizeof(char));
             files[i].name[0] = '\0';
