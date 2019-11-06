@@ -1,0 +1,115 @@
+RETURNbral1021@iwi-lkit3-05:~/Documents/bslab-testing$ ls
+CMakeLists.txt  includes  Makefile  src
+bral1021@iwi-lkit3-05:~/Documents/bslab-testing$ make
+mkdir -p obj
+g++ -c -std=gnu++11 -g -Wall -Iincludes  -o obj/main.o  src/main.cpp
+g++ -c -std=gnu++11 -g -Wall -Iincludes  -o obj/testcases.o  src/testcases.cpp
+g++ -c -std=gnu++11 -g -Wall -Iincludes  -o obj/helper.o  src/helper.cpp
+g++ -g -Wall -o test obj/main.o obj/testcases.o obj/helper.o `pkg-config fuse --libs`	
+bral1021@iwi-lkit3-05:~/Documents/bslab-testing$ export PATH=$PATH:/home/ADS/bral1021/CLionProjects/MyFS
+bral1021@iwi-lkit3-05:~/Documents/bslab-testing$ mkdir mount
+bral1021@iwi-lkit3-05:~/Documents/bslab-testing$ mount.myfs mount -l log.txt
+bral1021@iwi-lkit3-05:~/Documents/bslab-testing$ cd mount#
+bash: cd: mount#: No such file or directory
+bral1021@iwi-lkit3-05:~/Documents/bslab-testing$ cd mount
+bral1021@iwi-lkit3-05:~/Documents/bslab-testing/mount$ ../test
+TEST CASE 2-1: Write and read a file
+	Small file (500 byte)...
+	Medium file (1500 byte)...
+	Large file (15000 byte)...
+TEST CASE 2-2: Write and read a file without closing
+	Small file (500 byte)...
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+test is a Catch v2.0.1 host application.
+Run with -? for options
+
+-------------------------------------------------------------------------------
+Test-2
+-------------------------------------------------------------------------------
+src/testcases.cpp:38
+...............................................................................
+
+src/helper.cpp:67: FAILED:
+  REQUIRE( b == size )
+with expansion:
+  -1 == 500 (0x1f4)
+
+TEST CASE 2-3: Truncate/overwrite a file
+	Small file (500 byte)...
+-------------------------------------------------------------------------------
+Test-3
+-------------------------------------------------------------------------------
+src/testcases.cpp:52
+...............................................................................
+
+src/helper.cpp:97: FAILED:
+  REQUIRE( fd >= 0 )
+with expansion:
+  -1 >= 0
+
+TEST CASE 2-4: Append to a file
+	Small file (500 byte)...
+-------------------------------------------------------------------------------
+Test-4
+-------------------------------------------------------------------------------
+src/testcases.cpp:66
+...............................................................................
+
+src/helper.cpp:172: FAILED:
+  REQUIRE( memcmp(r, w, bufferSize) == 0 )
+with expansion:
+  29 == 0
+
+TEST CASE 2-5: Overwrite parts of a file
+	Small file (500 byte)...
+-------------------------------------------------------------------------------
+Test-5
+-------------------------------------------------------------------------------
+src/testcases.cpp:80
+...............................................................................
+
+src/helper.cpp:201: FAILED:
+  REQUIRE( fd >= 0 )
+with expansion:
+  -1 >= 0
+
+TEST CASE 2-6: Multiple writes at different positions
+	Small file (500 byte)...
+	Medium file (1500 byte)...
+	Large file (15000 byte)...
+TEST CASE 2-7: Write to multiple open files
+	Small file (500 byte)...
+	Medium file (1500 byte)...
+	Large file (15000 byte)...
+TEST CASE 2-8: Write and read a very large file
+	Very large file (20971520 byte)...
+-------------------------------------------------------------------------------
+Test-8
+-------------------------------------------------------------------------------
+src/testcases.cpp:122
+...............................................................................
+
+src/helper.cpp:52: FAILED:
+  REQUIRE( b == size )
+with expansion:
+  1048576 (0x100000) == 20971520 (0x1400000)
+
+===============================================================================
+test cases:     8 |     3 passed | 5 failed
+assertions: 37567 | 37562 passed | 5 failed
+
+bral1021@iwi-lkit3-05:~/Documents/bslab-testing/mount$ 
+bral1021@iwi-lkit3-05:~/Documents/bslab-testing/mount$ 
+bral1021@iwi-lkit3-05:~/Documents/bslab-testing/mount$ cd ..
+bral1021@iwi-lkit3-05:~/.local/share/Trash/files/bslab-testing$ fusermount -u mount
+bral1021@iwi-lkit3-05:~/.local/share/Trash/files/bslab-testing$ cd ..
+bral1021@iwi-lkit3-05:~/.local/share/Trash/files$ ls
+bslab-testing
+bral1021@iwi-lkit3-05:~/.local/share/Trash/files$ rmdir bslab-testing/
+rmdir: failed to remove 'bslab-testing/': Directory not empty
+bral1021@iwi-lkit3-05:~/.local/share/Trash/files$ rm -rf bslab-testing/
+bral1021@iwi-lkit3-05:~/.local/share/Trash/files$ ls
+bral1021@iwi-lkit3-05:~/.local/share/Trash/files$ ^C
+bral1021@iwi-lkit3-05:~/.local/share/Trash/files$ 
+
