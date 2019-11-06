@@ -251,7 +251,7 @@ int MyFS::fuseRead(const char *path, char *buf, size_t size, off_t offset, struc
     LOGF( "--> Trying to read %s, %lu, %lu\n", path, (unsigned long) offset, size );
     memcpy( buf, files[fileHandles[fileInfo->fh]].data + offset, size );
     files[fileHandles[fileInfo -> fh]].atime = time(NULL);
-    RETURN((int) (strlen( files[fileHandles[fileInfo->fh]].data ) - offset));
+    RETURN(strlen( files[fileHandles[fileInfo->fh]].data ) - offset);
 }
 
 int MyFS::fuseWrite(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fileInfo) {
@@ -406,7 +406,8 @@ void* MyFS::fuseInit(struct fuse_conn_info *conn) {
         for (int i = 0; i < NUM_DIR_ENTRIES; i++) {
             files[i].size = 0;
             //Evlt aendern auf dynamic cast
-            files[i].data = (char *)malloc((files[i].size+1)*sizeof(char));
+            files[i].data = (char *)malloc(sizeof(char));
+            files[i].data[0] = '\0';
             files[i].name[0] = '\0';
         }
 

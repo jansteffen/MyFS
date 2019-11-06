@@ -25,7 +25,7 @@ echo "truncating file content to 2 bytes"
 truncate -s 2 file1
 echo "listing file content"
 cat file1
-echo "closing filesystem"
+echo "\nclosing filesystem"
 cd ..
 fusermount --unmount mount
 
