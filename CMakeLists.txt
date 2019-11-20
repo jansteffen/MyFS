@@ -1,0 +1,43 @@
+cmake_minimum_required(VERSION 3.8)
+project(MyFS)
+
+#set(CMAKE_VRBOSE_MAKEFILE ON)
+
+set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+
+set(MOUNT
+        src/blockdevice.cpp
+        src/myfs.cpp
+        src/wrap.cpp
+        src/mount.myfs.c includes/myfs-constants.h includes/myfs-file-information-manager.h includes/myfs-open-file-handler.h src/myfs-file-information-manager.cpp src/myfs-open-file-handler.cpp)
+
+set(UNITTESTS
+        src/blockdevice.cpp
+        src/myfs.cpp
+        unittests/main.cpp
+        unittests/test-blockdevice.cpp
+        unittests/test-myfs.cpp
+        unittests/helper.cpp includes/myfs-constants.h includes/myfs-file-information-manager.h includes/myfs-open-file-handler.h src/myfs-file-information-manager.cpp src/myfs-open-file-handler.cpp)
+
+include_directories(includes)
+
+set(COMPILE_FLAGS "-Wall -DFUSE_USE_VERSION=26 -D_FILE_OFFSET_BITS=64")
+
+add_definitions(${COMPILE_FLAGS})
+
+add_executable(mount.myfs ${MOUNT})
+add_executable(unittests ${UNITTESTS})
+
+find_package(PkgConfig)
+pkg_check_modules(FUSE fuse)
+
+target_link_libraries(mount.myfs ${FUSE_LDFLAGS})
+target_compile_options(mount.myfs PUBLIC ${FUSE_CFLAGS})
+target_include_directories(mount.myfs PUBLIC ${FUSE_INCLUDE_DIRS})
+
+target_link_libraries(unittests ${FUSE_LDFLAGS})
+target_compile_options(unittests PUBLIC ${FUSE_CFLAGS})
+target_include_directories(unittests PUBLIC ${FUSE_INCLUDE_DIRS})
