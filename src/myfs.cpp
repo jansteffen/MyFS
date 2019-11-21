@@ -102,14 +102,29 @@ int MyFS::fuseMknod(const char *path, mode_t mode, dev_t dev) {
 
 int MyFS::fuseUnlink(const char *path) {
     LOGM();
-    
-    // TODO: Implement this!
+
+    const char* fileName = GET_FILE_NAME(path);
+
+    if(!fileInformationManager.fileInformationExists(fileName)) {
+        RETURN(-ENOENT)
+    }
+
+    fileInformationManager.deleteFile(fileName);
     
     RETURN(0);
 }
 
 int MyFS::fuseTruncate(const char *path, off_t newSize) {
     LOGM();
+
+    const char* fileName = GET_FILE_NAME(path);
+
+    if(!fileInformationManager.fileInformationExists(fileName)) {
+        RETURN(-ENOENT)
+    }
+
+    fileInformationManager.truncateFile(fileName, newSize);
+
     return 0;
 }
 

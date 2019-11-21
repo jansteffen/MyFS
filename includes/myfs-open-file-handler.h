@@ -10,11 +10,13 @@
 class MyFsOpenFileHandler {
 private:
     MyFsOpenFileHandle *openFileHandles;
+
 public:
     MyFsOpenFileHandler();
     ~MyFsOpenFileHandler();
 
     void init(MyFsOpenFileHandle * openFileHandles);
+    void openFile(int fileDescriptor, MyFsFileAccessMode accessMode, struct fuse_file_info *fileInfo);
 };
 
 #endif //MYFS_MYFS_OPEN_FILE_HANDLER_H

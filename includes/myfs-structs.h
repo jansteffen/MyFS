@@ -1,3 +1,4 @@
+
 //
 //  myfs-structs.h
 //  myfs
@@ -30,7 +31,13 @@ typedef struct {
 } MyFsFileInformation;
 
 typedef struct {
+    bool read;
+    bool write;
+} MyFsFileAccessMode;
+
+typedef struct {
     int fileDescriptor;
+    MyFsFileAccessMode accessMode;
 } MyFsOpenFileHandle;
 
-#endif /* myfs_structs_h */
+#endif

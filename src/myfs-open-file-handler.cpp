@@ -19,3 +19,7 @@ void MyFsOpenFileHandler::init(MyFsOpenFileHandle * openFileHandles) {
     }
 }
 
+void MyFsOpenFileHandler::openFile(int fileDescriptor, MyFsFileAccessMode accessMode, struct fuse_file_info *fileInfo) {
+
+}
+
