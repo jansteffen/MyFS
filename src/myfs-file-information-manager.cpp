@@ -177,7 +177,7 @@ bool MyFsFileInformationManager::fileInformationExists(const char *fileName) {
 }
 
 int MyFsFileInformationManager::getFileDescriptor(const char* fileName) {
-    for(int i = 0; i < NUM_DIR_ENTRIES - 1; i++) {
+    for (int i = 0; i < NUM_DIR_ENTRIES; i++) {
         if (fileInformationExists(i) && fileNameIsEqualTo(i, fileName)) {
             return i;
         }
@@ -216,7 +216,7 @@ bool MyFsFileInformationManager::hasFreeSpace() {
 void MyFsFileInformationManager::createFile(const char* fileName, mode_t mode) {
     int freeFileDescriptor = getFreeFileDescriptor();
 
-    MyFsFileInformation fileInformation = {};
+    MyFsFileInformation fileInformation = fileInformations[freeFileDescriptor];
     strcpy(fileInformation.name, fileName);
     time_t currentTime = time(nullptr);
     fileInformation.atime = currentTime;

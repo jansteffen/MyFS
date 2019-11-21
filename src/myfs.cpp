@@ -70,9 +70,9 @@ MyFS::~MyFS() {
 
 int MyFS::fuseGetattr(const char *path, struct stat *statbuf) {
     LOGM();
-    LOGF("\tAttributes of %s requested\n", path);
 
     const char *fileName = GET_FILE_NAME(path);
+    LOGF("\tAttributes of %s requested\n", fileName);
 
     if (!fileInformationManager.fileInformationExists(fileName)) {
         RETURN(-ENOENT)
@@ -140,6 +140,8 @@ int MyFS::fuseOpen(const char *path, struct fuse_file_info *fileInfo) {
     if (!openFileHandler.hasFreeSpace()) {
         RETURN(-EMFILE);
     }
+
+    LOGF("FLAGS: %d", fileInfo->flags);
 
     if (!fileInformationManager.isAccessed(fileName, fileInfo->flags)) {
         RETURN(-EACCES);
@@ -250,13 +252,14 @@ int MyFS::fuseReaddir(const char *path, void *buf, fuse_fill_dir_t filler, off_t
 
     // Check if path is directory
     if (strcmp("/", path) == 0) {
-        for (int i = 0; i < NUM_DIR_ENTRIES - 1; i++) {
+        for (int i = 0; i < NUM_DIR_ENTRIES; i++) {
             if (fileInformationManager.fileInformationExists(i)) {
-                char *name = fileInformationManager.getFileInformation(i).name;
                 struct stat s = {};
+                LOGF("--> Getting attributes of File %s at index %d\n",
+                     fileInformationManager.getFileInformation(i).name, i);
 
-                fuseGetattr(name, &s);
-                filler(buf, name, &s, 0);
+                fuseGetattr(fileInformationManager.getFileInformation(i).name, &s);
+                filler(buf, fileInformationManager.getFileInformation(i).name, &s, 0);
             }
         }
         filler(buf, "..", nullptr, 0);

@@ -3,7 +3,7 @@
 //
 #ifndef MYFS_MYFS_FILE_INFORMATION_MANAGER_H
 #define MYFS_MYFS_FILE_INFORMATION_MANAGER_H
-#define CURRENT_DIR_INFORMATION fileInformations[NUM_DIR_ENTRIES]
+#define CURRENT_DIR_INFORMATION fileInformations[NUM_DIR_ENTRIES - 1]
 
 #include "myfs-structs.h"
 
