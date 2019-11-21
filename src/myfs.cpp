@@ -38,8 +38,8 @@
 #include "blockdevice.h"
 
 
-static const char* GET_FILE_NAME(const char *path) {
-    const char* name = path;
+static const char *GET_FILE_NAME(const char *path) {
+    const char *name = path;
     if (*path == '/') {
         if (strlen(path) == 1) {
             name = ".";
@@ -51,30 +51,30 @@ static const char* GET_FILE_NAME(const char *path) {
     return name;
 }
 
-MyFS* MyFS::_instance = NULL;
+MyFS *MyFS::_instance = NULL;
 
-MyFS* MyFS::Instance() {
-    if(_instance == NULL) {
+MyFS *MyFS::Instance() {
+    if (_instance == NULL) {
         _instance = new MyFS();
     }
     return _instance;
 }
 
 MyFS::MyFS() {
-    this->logFile= stderr;
+    this->logFile = stderr;
 }
 
 MyFS::~MyFS() {
-    
+
 }
 
 int MyFS::fuseGetattr(const char *path, struct stat *statbuf) {
     LOGM();
-    LOGF( "\tAttributes of %s requested\n", path );
+    LOGF("\tAttributes of %s requested\n", path);
 
-    const char* fileName = GET_FILE_NAME(path);
+    const char *fileName = GET_FILE_NAME(path);
 
-    if(!fileInformationManager.fileInformationExists(fileName)) {
+    if (!fileInformationManager.fileInformationExists(fileName)) {
         RETURN(-ENOENT)
     }
 
@@ -86,40 +86,40 @@ int MyFS::fuseGetattr(const char *path, struct stat *statbuf) {
 int MyFS::fuseMknod(const char *path, mode_t mode, dev_t dev) {
     LOGM();
 
-    const char* fileName = GET_FILE_NAME(path);
-    if(fileInformationManager.fileInformationExists(fileName)) {
+    const char *fileName = GET_FILE_NAME(path);
+    if (fileInformationManager.fileInformationExists(fileName)) {
         RETURN(-EEXIST);
     }
 
-    if(!fileInformationManager.hasFreeSpace()) {
+    if (!fileInformationManager.hasFreeSpace()) {
         RETURN(-ENOSPC);
     }
 
     fileInformationManager.createFile(fileName, mode);
-    
+
     RETURN(0);
 }
 
 int MyFS::fuseUnlink(const char *path) {
     LOGM();
 
-    const char* fileName = GET_FILE_NAME(path);
+    const char *fileName = GET_FILE_NAME(path);
 
-    if(!fileInformationManager.fileInformationExists(fileName)) {
+    if (!fileInformationManager.fileInformationExists(fileName)) {
         RETURN(-ENOENT)
     }
 
     fileInformationManager.deleteFile(fileName);
-    
+
     RETURN(0);
 }
 
 int MyFS::fuseTruncate(const char *path, off_t newSize) {
     LOGM();
 
-    const char* fileName = GET_FILE_NAME(path);
+    const char *fileName = GET_FILE_NAME(path);
 
-    if(!fileInformationManager.fileInformationExists(fileName)) {
+    if (!fileInformationManager.fileInformationExists(fileName)) {
         RETURN(-ENOENT)
     }
 
@@ -130,77 +130,138 @@ int MyFS::fuseTruncate(const char *path, off_t newSize) {
 
 int MyFS::fuseOpen(const char *path, struct fuse_file_info *fileInfo) {
     LOGM();
-    
-    // TODO: Implement this!
-    
+
+    const char *fileName = GET_FILE_NAME(path);
+
+    if (!fileInformationManager.fileInformationExists(fileName)) {
+        RETURN(-ENOENT)
+    }
+
+    if (!openFileHandler.hasFreeSpace()) {
+        RETURN(-EMFILE);
+    }
+
+    if (!fileInformationManager.isAccessed(fileName, fileInfo->flags)) {
+        RETURN(-EACCES);
+    }
+
+    MyFsFileAccessMode accessMode = fileInformationManager.getAccess(fileName, fileInfo->flags);
+    int fileDescriptor = fileInformationManager.getFileDescriptor(fileName);
+    int openFileHandleDescriptor = openFileHandler.openFile(fileDescriptor, accessMode);
+    fileInfo->fh = openFileHandleDescriptor;
+
     RETURN(0);
 }
 
 int MyFS::fuseRead(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fileInfo) {
     LOGM();
-    
-    // TODO: Implement this!
+    LOGF("--> Trying to read %s, %lu, %lu\n", path, (unsigned long) offset, size);
 
-    LOGF( "--> Trying to read %s, %lu, %lu\n", path, (unsigned long) offset, size );
+    int openFileHandleDescriptor = fileInfo->fh;
+    if (!openFileHandler.isValidOpenFileHandle(openFileHandleDescriptor) ||
+        !openFileHandler.isOpen(openFileHandleDescriptor) ||
+        !openFileHandler.isRead(openFileHandleDescriptor)) {
+        RETURN(-EBADF);
+    }
 
-    char file54Text[] = "Hello World From File54!\n";
-    char file349Text[] = "Hello World From File349!\n";
-    char *selectedText = NULL;
+    int fileDescriptor = openFileHandler.getFileDescriptor(openFileHandleDescriptor);
+    if (!fileInformationManager.fileInformationExists(fileDescriptor)) {
+        RETURN(-ENOENT);
+    }
 
-    // ... //
+    if (offset < 0) {
+        offset = 0;
+    }
 
-    if ( strcmp( path, "/file54" ) == 0 )
-        selectedText = file54Text;
-    else if ( strcmp( path, "/file349" ) == 0 )
-        selectedText = file349Text;
-    else
-        return -ENOENT;
+    MyFsFileInformation fileInformation = fileInformationManager.getFileInformation(fileDescriptor);
+    if (fileInformation.size <= offset) {
+        RETURN(0); // EOF
+    }
 
-    // ... //
+    if ((uint64_t) fileInformation.size < offset + size) {
+        size = fileInformation.size - offset;
+    }
 
-    memcpy( buf, selectedText + offset, size );
+    fileInformationManager.read(fileDescriptor, size, offset, buf);
 
-    RETURN((int) (strlen( selectedText ) - offset));
+    RETURN((int) size);
 }
 
 int MyFS::fuseWrite(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fileInfo) {
     LOGM();
-    
-    // TODO: Implement this!
-    
-    RETURN(0);
+    LOGF("--> Trying to write %s with size %lu and offset %lu\n", buf, size, (unsigned long) offset);
+
+    int openFileHandleDescriptor = fileInfo->fh;
+    if (!openFileHandler.isValidOpenFileHandle(openFileHandleDescriptor) ||
+        !openFileHandler.isOpen(openFileHandleDescriptor) ||
+        !openFileHandler.isWrite(openFileHandleDescriptor)) {
+        RETURN(-EBADF);
+    }
+
+    int fileDescriptor = openFileHandler.getFileDescriptor(openFileHandleDescriptor);
+    if (!fileInformationManager.fileInformationExists(fileDescriptor)) {
+        RETURN(-ENOENT);
+    }
+
+    if (offset < 0) {
+        offset = 0;
+    }
+
+    MyFsFileInformation fileInformation = fileInformationManager.getFileInformation(fileDescriptor);
+
+    if (fileInformation.size < offset) {
+        size_t sizeZero = offset - fileInformation.size;
+        char bufferZero[sizeZero];
+        for (int i = 0; i < (int) sizeZero; i++) {
+            bufferZero[i] = 0;
+        }
+
+        int ret = fuseWrite(path, bufferZero, sizeZero, fileInformation.size, fileInfo);
+        if (ret < 0) { RETURN(ret); };
+    }
+
+    fileInformationManager.write(fileDescriptor, size, offset, buf);
+
+    RETURN((int) size);
 }
 
 int MyFS::fuseRelease(const char *path, struct fuse_file_info *fileInfo) {
     LOGM();
-    
-    // TODO: Implement this!
-    
+
+    int openFileHandleDescriptor = fileInfo->fh;
+    if (!openFileHandler.isValidOpenFileHandle(openFileHandleDescriptor) ||
+        !openFileHandler.isOpen(openFileHandleDescriptor)) {
+        RETURN(-EBADF);
+    }
+
+    openFileHandler.release(openFileHandleDescriptor);
+
     RETURN(0);
 }
 
 int MyFS::fuseOpendir(const char *path, struct fuse_file_info *fileInfo) {
     LOGM();
-    
-    // (TODO: Implement this!)
-    
-    RETURN(0);
+    RETURN(0); // always grant access
 }
 
 int MyFS::fuseReaddir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *fileInfo) {
     LOGM();
-    
-    // TODO: Implement this!
+    LOGF("--> Getting The List of Files of %s\n", path);
 
-    LOGF( "--> Getting The List of Files of %s\n", path );
+    // Check if path is directory
+    if (strcmp("/", path) == 0) {
+        for (int i = 0; i < NUM_DIR_ENTRIES - 1; i++) {
+            if (fileInformationManager.fileInformationExists(i)) {
+                char *name = fileInformationManager.getFileInformation(i).name;
+                struct stat s = {};
 
-    filler( buf, ".", NULL, 0 ); // Current Directory
-    filler( buf, "..", NULL, 0 ); // Parent Directory
-
-    if ( strcmp( path, "/" ) == 0 ) // If the user is trying to show the files/directories of the root directory show the following
-    {
-        filler( buf, "file54", NULL, 0 );
-        filler( buf, "file349", NULL, 0 );
+                fuseGetattr(name, &s);
+                filler(buf, name, &s, 0);
+            }
+        }
+        filler(buf, "..", nullptr, 0);
+    } else {
+        RETURN(-ENOTDIR);
     }
 
     RETURN(0);
@@ -208,18 +269,19 @@ int MyFS::fuseReaddir(const char *path, void *buf, fuse_fill_dir_t filler, off_t
 
 int MyFS::fuseReleasedir(const char *path, struct fuse_file_info *fileInfo) {
     LOGM();
-    
-    // (TODO: Implement this!)
-    
     RETURN(0);
 }
 
 int MyFS::fuseCreate(const char *path, mode_t mode, struct fuse_file_info *fileInfo) {
     LOGM();
-    
-    // TODO: Implement this!
-    
-    RETURN(0);
+
+    dev_t dev = 0;
+    int ret = fuseMknod(path, mode, dev);
+    if (ret < 0) {
+        RETURN(ret);
+    }
+    ret = fuseOpen(path, fileInfo);
+    RETURN(ret);
 }
 
 void MyFS::fuseDestroy() {
@@ -227,42 +289,42 @@ void MyFS::fuseDestroy() {
     // We don't need to do anything as the file information manager and the open file handler get destroyed anyways.
 }
 
-void* MyFS::fuseInit(struct fuse_conn_info *conn) {
+void *MyFS::fuseInit(struct fuse_conn_info *conn) {
     // Open logfile
-    this->logFile= fopen(((MyFsInfo *) fuse_get_context()->private_data)->logFile, "w+");
-    if(this->logFile == NULL) {
+    this->logFile = fopen(((MyFsInfo *) fuse_get_context()->private_data)->logFile, "w+");
+    if (this->logFile == nullptr) {
         fprintf(stderr, "ERROR: Cannot open logfile %s\n", ((MyFsInfo *) fuse_get_context()->private_data)->logFile);
     } else {
         //    this->logFile= ((MyFsInfo *) fuse_get_context()->private_data)->logFile;
-        
+
         // turn of logfile buffering
-        setvbuf(this->logFile, NULL, _IOLBF, 0);
-        
+        setvbuf(this->logFile, nullptr, _IOLBF, 0);
+
         LOG("Starting logging...\n");
         LOGM();
 
         // Get in-memory flag
-        this->inMemoryFs= (((MyFsInfo *) fuse_get_context()->private_data)->inMemoryFs == 1);
+        this->inMemoryFs = (((MyFsInfo *) fuse_get_context()->private_data)->inMemoryFs == 1);
 
-        if(this->inMemoryFs) {
+        if (this->inMemoryFs) {
             LOG("Using in-memory mode");
             auto *fileInformations = new MyFsFileInformation[NUM_DIR_ENTRIES];
             auto *openFileHandles = new MyFsOpenFileHandle[NUM_OPEN_FILES];
 
-           fileInformationManager.init(fileInformations);
-           openFileHandler.init(openFileHandles);
+            fileInformationManager.init(fileInformations);
+            openFileHandler.init(openFileHandles);
 
         } else {
             LOGF("Container file name: %s", ((MyFsInfo *) fuse_get_context()->private_data)->contFile);
 
-            int ret= this->blockDevice.open(((MyFsInfo *) fuse_get_context()->private_data)->contFile);
+            int ret = this->blockDevice.open(((MyFsInfo *) fuse_get_context()->private_data)->contFile);
 
-            if(ret >= 0) {
+            if (ret >= 0) {
                 LOG("Container file does exist, reading");
 
                 // TODO: Read existing structures form file
 
-            } else if(ret == -ENOENT) {
+            } else if (ret == -ENOENT) {
                 LOG("Container file does not exist, creating new one");
 
                 ret = this->blockDevice.create(((MyFsInfo *) fuse_get_context()->private_data)->contFile);
@@ -270,16 +332,16 @@ void* MyFS::fuseInit(struct fuse_conn_info *conn) {
                 if (ret >= 0) {
 
                     // TODO: Create empty structures in file
-                    
+
                 }
             }
 
-            if(ret < 0) {
+            if (ret < 0) {
                 LOGF("ERROR: Access to container file failed with error %d", ret);
             }
         }
     }
-    
+
     RETURN(0);
 }
 
@@ -381,15 +443,17 @@ int MyFS::fuseChown(const char *path, uid_t uid, gid_t gid) {
 #ifdef __APPLE__
 int MyFS::fuseSetxattr(const char *path, const char *name, const char *value, size_t size, int flags, uint32_t x) {
 #else
+
 int MyFS::fuseSetxattr(const char *path, const char *name, const char *value, size_t size, int flags) {
 #endif
     LOGM();
     RETURN(0);
 }
-    
+
 #ifdef __APPLE__
 int MyFS::fuseGetxattr(const char *path, const char *name, char *value, size_t size, uint x) {
 #else
+
 int MyFS::fuseGetxattr(const char *path, const char *name, char *value, size_t size) {
 #endif
     LOGM();

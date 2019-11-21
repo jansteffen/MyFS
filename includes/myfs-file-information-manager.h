@@ -10,20 +10,27 @@
 class MyFsFileInformationManager {
 private:
     MyFsFileInformation * fileInformations;
+    static const int IS_FREE = -1;
+    static const int DOES_NOT_EXIST = -1;
     void initFileInformation(int fileDescriptor);
-    bool fileExists(int fileDescriptor);
     bool fileNameIsEqualTo(int fileDescriptor, const char* name);
     int getFreeFileDescriptor();
     void clearFileInformation(int fileDescriptor);
     void reInitFileInformation(int fileDescriptor);
     void changeFileSize(int fileDescriptor, off_t size);
     void truncateFileData(int fileDescriptor, off_t size);
-    MyFsFileAccessMode getUserAccess(int fileDescriptor, mode_t mode);
-    bool isUserAccessed(int fileDescriptor, mode_t mode);
-    MyFsFileAccessMode getGroupAccess(int fileDescriptor, mode_t mode);
-    bool isGroupAccessed(int fileDescriptor, mode_t mode);
-    MyFsFileAccessMode getOtherAccess(int fileDescriptor, mode_t mode);
-    bool isOtherAccessed(int fileDescriptor, mode_t mode);
+
+    MyFsFileAccessMode getUserAccess(int fileDescriptor, int flags);
+
+    bool isUserAccessed(int fileDescriptor, int flags);
+
+    MyFsFileAccessMode getGroupAccess(int fileDescriptor, int flags);
+
+    bool isGroupAccessed(int fileDescriptor, int flags);
+
+    MyFsFileAccessMode getOtherAccess(int fileDescriptor, int flags);
+
+    bool isOtherAccessed(int fileDescriptor, int flags);
 
 public:
     MyFsFileInformationManager();
@@ -33,7 +40,11 @@ public:
 
     int getFileDescriptor(const char* fileName);
     bool fileInformationExists(const char* fileName);
+
+    bool fileInformationExists(int fileDescriptor);
     MyFsFileInformation getFileInformation(const char* fileName);
+
+    MyFsFileInformation getFileInformation(int fileDescriptor);
     struct stat getStat(const char* fileName);
 
     bool hasFreeSpace();
@@ -41,8 +52,16 @@ public:
     void deleteFile(const char* fileName);
     void truncateFile(const char* fileName, off_t size);
 
-    bool isAccessed(int fileDescriptor, mode_t mode);
-    MyFsFileAccessMode getAccess(int fileDescriptor, mode_t mode);
+    bool isAccessed(const char *fileName, int flags);
+
+    MyFsFileAccessMode getAccess(const char *fileName, int flags);
+
+    void update(MyFsFileInformation fileInformation);
+
+    void read(int fileDescriptor, size_t size, off_t offset, char *buf);
+
+    void write(int fileDescriptor, size_t size, off_t offset, const char *buf);
+
 
 };
 

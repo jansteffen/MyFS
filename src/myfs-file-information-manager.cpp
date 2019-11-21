@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <ctime>
 #include <iostream>
+#include <fcntl.h>
 #include "myfs-file-information-manager.h"
 
 MyFsFileInformationManager::MyFsFileInformationManager() = default;
@@ -16,31 +17,23 @@ MyFsFileInformationManager::~MyFsFileInformationManager() {
 
 /* PRIVATE */
 void MyFsFileInformationManager::initFileInformation(int fileDescriptor) {
-    fileInformations[fileDescriptor].size = -1;
+    fileInformations[fileDescriptor].size = IS_FREE;
     fileInformations[fileDescriptor].nlink = 1;
     fileInformations[fileDescriptor].uid = geteuid(); // The owner of the file/directory is the user who mounted the filesystem
     fileInformations[fileDescriptor].gid = getegid(); // The group of the file/directory is the same as the group of the user who mounted the filesystem
-}
-
-bool MyFsFileInformationManager::fileExists(int fileDescriptor) {
-    return fileInformations[fileDescriptor].size != -1;
 }
 
 bool MyFsFileInformationManager::fileNameIsEqualTo(int fileDescriptor, const char* name) {
     return strcmp(fileInformations[fileDescriptor].name, name) == 0;
 }
 
-bool MyFsFileInformationManager::fileInformationExists(const char* fileName) {
-    return getFileDescriptor(fileName) != -1;
-}
-
 int MyFsFileInformationManager::getFreeFileDescriptor() {
     for(int i = 0; i < NUM_DIR_ENTRIES - 1; i++) {
-        if(!fileExists(i)) {
+        if (!fileInformationExists(i)) {
             return i;
         }
     }
-    return -1;
+    return DOES_NOT_EXIST;
 }
 
 void MyFsFileInformationManager::clearFileInformation(int fileDescriptor) {
@@ -60,28 +53,97 @@ void MyFsFileInformationManager::truncateFileData(int fileDescriptor, off_t size
     fileInformations[fileDescriptor].data = (char *)(realloc(fileInformations[fileDescriptor].data, size));
 }
 
-MyFsFileAccessMode MyFsFileInformationManager::getUserAccess(int fileDescriptor, mode_t mode) {
-    return MyFsFileAccessMode();
+MyFsFileAccessMode MyFsFileInformationManager::getUserAccess(int fileDescriptor, int flags) {
+    MyFsFileInformation fileInformation = fileInformations[fileDescriptor];
+    MyFsFileAccessMode accessMode = {};
+    accessMode.read = false;
+    accessMode.write = false;
+
+    if (fileInformation.uid == geteuid()) {
+        if ((flags & O_RDWR) != 0) {
+            if ((fileInformation.mode & S_IRWXU) != 0) {
+                accessMode.read = true;
+                accessMode.write = true;
+            }
+        } else if ((flags & O_WRONLY) != 0) {
+            if ((fileInformation.mode & S_IWUSR) != 0) {
+                accessMode.write = true;
+            }
+        } else {
+            if ((fileInformation.mode & S_IRUSR) != 0) {
+                accessMode.read = true;
+            }
+        }
+    }
+
+    return accessMode;
 }
 
-bool MyFsFileInformationManager::isUserAccessed(int fileDescriptor, mode_t mode) {
-    return false;
+bool MyFsFileInformationManager::isUserAccessed(int fileDescriptor, int flags) {
+    MyFsFileAccessMode accessMode = getUserAccess(fileDescriptor, flags);
+    return accessMode.write || accessMode.read;
 }
 
-MyFsFileAccessMode MyFsFileInformationManager::getGroupAccess(int fileDescriptor, mode_t mode) {
-    return MyFsFileAccessMode();
+MyFsFileAccessMode MyFsFileInformationManager::getGroupAccess(int fileDescriptor, int flags) {
+    MyFsFileInformation fileInformation = fileInformations[fileDescriptor];
+    MyFsFileAccessMode accessMode = {};
+    accessMode.read = false;
+    accessMode.write = false;
+
+    if (fileInformation.gid == getegid()) {
+        if ((flags & O_RDWR) != 0) {
+            if ((fileInformation.mode & S_IRWXG) != 0) {
+                accessMode.read = true;
+                accessMode.write = true;
+            }
+        } else if ((flags & O_WRONLY) != 0) {
+            if ((fileInformation.mode & S_IWGRP) != 0) {
+                accessMode.write = true;
+            }
+        } else {
+            if ((fileInformation.mode & S_IRGRP) != 0) {
+                accessMode.read = true;
+            }
+        }
+    }
+
+    return accessMode;
 }
 
-bool MyFsFileInformationManager::isGroupAccessed(int fileDescriptor, mode_t mode) {
-    return false;
+bool MyFsFileInformationManager::isGroupAccessed(int fileDescriptor, int flags) {
+    MyFsFileAccessMode accessMode = getGroupAccess(fileDescriptor, flags);
+    return accessMode.write || accessMode.read;
 }
 
-MyFsFileAccessMode MyFsFileInformationManager::getOtherAccess(int fileDescriptor, mode_t mode) {
-    return MyFsFileAccessMode();
+MyFsFileAccessMode MyFsFileInformationManager::getOtherAccess(int fileDescriptor, int flags) {
+    MyFsFileInformation fileInformation = fileInformations[fileDescriptor];
+    MyFsFileAccessMode accessMode = {};
+    accessMode.read = false;
+    accessMode.write = false;
+
+    if (fileInformation.uid != geteuid() && fileInformation.gid != getegid()) {
+        if ((flags & O_RDWR) != 0) {
+            if ((fileInformation.mode & S_IRWXO) != 0) {
+                accessMode.read = true;
+                accessMode.write = true;
+            }
+        } else if ((flags & O_WRONLY) != 0) {
+            if ((fileInformation.mode & S_IWOTH) != 0) {
+                accessMode.write = true;
+            }
+        } else {
+            if ((fileInformation.mode & S_IROTH) != 0) {
+                accessMode.read = true;
+            }
+        }
+    }
+
+    return accessMode;
 }
 
-bool MyFsFileInformationManager::isOtherAccessed(int fileDescriptor, mode_t mode) {
-    return false;
+bool MyFsFileInformationManager::isOtherAccessed(int fileDescriptor, int flags) {
+    MyFsFileAccessMode accessMode = getOtherAccess(fileDescriptor, flags);
+    return accessMode.write || accessMode.read;
 }
 
 /* PUBLIC */
@@ -105,18 +167,31 @@ void MyFsFileInformationManager::init(MyFsFileInformation* fileInformations) {
     CURRENT_DIR_INFORMATION.nlink = 2; // Why "two" hardlinks instead of "one"? The answer is here: http://unix.stackexchange.com/a/101536
 }
 
+
+bool MyFsFileInformationManager::fileInformationExists(int fileDescriptor) {
+    return fileInformations[fileDescriptor].size != IS_FREE;
+}
+
+bool MyFsFileInformationManager::fileInformationExists(const char *fileName) {
+    return getFileDescriptor(fileName) != DOES_NOT_EXIST;
+}
+
 int MyFsFileInformationManager::getFileDescriptor(const char* fileName) {
     for(int i = 0; i < NUM_DIR_ENTRIES - 1; i++) {
-        if(fileExists(i) && fileNameIsEqualTo(i, fileName)) {
+        if (fileInformationExists(i) && fileNameIsEqualTo(i, fileName)) {
             return i;
         }
     }
-    return -1;
+    return DOES_NOT_EXIST;
+}
+
+MyFsFileInformation MyFsFileInformationManager::getFileInformation(int fileDescriptor) {
+    return fileInformations[fileDescriptor];
 }
 
 MyFsFileInformation MyFsFileInformationManager::getFileInformation(const char* fileName) {
     int fileDescriptor = getFileDescriptor(fileName);
-    return fileInformations[fileDescriptor];
+    return getFileInformation(fileDescriptor);
 }
 
 struct stat MyFsFileInformationManager::getStat(const char* fileName) {
@@ -135,7 +210,7 @@ struct stat MyFsFileInformationManager::getStat(const char* fileName) {
 }
 
 bool MyFsFileInformationManager::hasFreeSpace() {
-    return getFreeFileDescriptor() != -1;
+    return getFreeFileDescriptor() != DOES_NOT_EXIST;
 }
 
 void MyFsFileInformationManager::createFile(const char* fileName, mode_t mode) {
@@ -164,11 +239,58 @@ void MyFsFileInformationManager::truncateFile(const char* fileName, off_t size) 
     truncateFileData(fileDescriptor, size);
 }
 
-bool MyFsFileInformationManager::isAccessed(int fileDescriptor, mode_t mode) {
-    return false;
+MyFsFileAccessMode MyFsFileInformationManager::getAccess(const char *fileName, int flags) {
+    int fileDescriptor = getFileDescriptor(fileName);
+
+    MyFsFileAccessMode accessMode = {};
+    accessMode.write = false;
+    accessMode.read = false;
+
+    if (isUserAccessed(fileDescriptor, flags)) {
+        accessMode = getUserAccess(fileDescriptor, flags);
+    } else if (isGroupAccessed(fileDescriptor, flags)) {
+        accessMode = getGroupAccess(fileDescriptor, flags);
+    } else if (isOtherAccessed(fileDescriptor, flags)) {
+        accessMode = getOtherAccess(fileDescriptor, flags);
+    }
+
+    return accessMode;
 }
 
-MyFsFileAccessMode MyFsFileInformationManager::getAccess(int fileDescriptor, mode_t mode) {
-    return MyFsFileAccessMode();
+bool MyFsFileInformationManager::isAccessed(const char *fileName, int flags) {
+    MyFsFileAccessMode accessMode = getAccess(fileName, flags);
+    return accessMode.read || accessMode.write;
 }
 
+void MyFsFileInformationManager::update(MyFsFileInformation fileInformation) {
+    int fileDescriptor = getFileDescriptor(fileInformation.name);
+    MyFsFileInformation oldFileInformation = getFileInformation(fileDescriptor);
+    CURRENT_DIR_INFORMATION.size -= oldFileInformation.size;
+    CURRENT_DIR_INFORMATION.size += fileInformation.size;
+    fileInformations[fileDescriptor] = fileInformation;
+}
+
+void MyFsFileInformationManager::read(int fileDescriptor, size_t size, off_t offset, char *buf) {
+    MyFsFileInformation fileInformation = getFileInformation(fileDescriptor);
+
+    fileInformation.atime = time(nullptr);
+    memcpy(buf, fileInformation.data + offset, size);
+    update(fileInformation);
+}
+
+void MyFsFileInformationManager::write(int fileDescriptor, size_t size, off_t offset, const char *buf) {
+    MyFsFileInformation fileInformation = getFileInformation(fileDescriptor);
+
+    time_t currentTime = time(nullptr);
+    fileInformation.atime = currentTime;
+    fileInformation.mtime = currentTime;
+
+    if ((uint64_t) fileInformation.size < offset + size) {
+        fileInformation.size = offset + size;
+    }
+
+    fileInformation.data = (char *) realloc(fileInformation.data, fileInformation.size);
+    memcpy(fileInformation.data + offset, buf, size);
+
+    update(fileInformation);
+}
