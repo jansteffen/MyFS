@@ -58,9 +58,9 @@ public:
 
     void update(MyFsFileInformation fileInformation);
 
-    void read(int fileDescriptor, size_t size, off_t offset, char *buf);
+    size_t read(int fileDescriptor, size_t size, off_t offset, char *buf);
 
-    void write(int fileDescriptor, size_t size, off_t offset, const char *buf);
+    size_t write(int fileDescriptor, size_t size, off_t offset, const char *buf);
 
 
 };

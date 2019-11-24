@@ -28,6 +28,8 @@
 #define DEBUG_METHODS
 #define DEBUG_RETURN_VALUES
 
+#define OK 0
+
 #include <unistd.h>
 #include <cstring>
 #include <cerrno>
@@ -80,7 +82,7 @@ int MyFS::fuseGetattr(const char *path, struct stat *statbuf) {
 
     *statbuf = fileInformationManager.getStat(fileName);
 
-    RETURN(0)
+    RETURN(OK)
 }
 
 int MyFS::fuseMknod(const char *path, mode_t mode, dev_t dev) {
@@ -97,7 +99,7 @@ int MyFS::fuseMknod(const char *path, mode_t mode, dev_t dev) {
 
     fileInformationManager.createFile(fileName, mode);
 
-    RETURN(0);
+    RETURN(OK);
 }
 
 int MyFS::fuseUnlink(const char *path) {
@@ -111,7 +113,7 @@ int MyFS::fuseUnlink(const char *path) {
 
     fileInformationManager.deleteFile(fileName);
 
-    RETURN(0);
+    RETURN(OK);
 }
 
 int MyFS::fuseTruncate(const char *path, off_t newSize) {
@@ -125,7 +127,7 @@ int MyFS::fuseTruncate(const char *path, off_t newSize) {
 
     fileInformationManager.truncateFile(fileName, newSize);
 
-    return 0;
+    RETURN(OK);
 }
 
 int MyFS::fuseOpen(const char *path, struct fuse_file_info *fileInfo) {
@@ -152,7 +154,7 @@ int MyFS::fuseOpen(const char *path, struct fuse_file_info *fileInfo) {
     int openFileHandleDescriptor = openFileHandler.openFile(fileDescriptor, accessMode);
     fileInfo->fh = openFileHandleDescriptor;
 
-    RETURN(0);
+    RETURN(OK);
 }
 
 int MyFS::fuseRead(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fileInfo) {
@@ -171,20 +173,7 @@ int MyFS::fuseRead(const char *path, char *buf, size_t size, off_t offset, struc
         RETURN(-ENOENT);
     }
 
-    if (offset < 0) {
-        offset = 0;
-    }
-
-    MyFsFileInformation fileInformation = fileInformationManager.getFileInformation(fileDescriptor);
-    if (fileInformation.size <= offset) {
-        RETURN(0); // EOF
-    }
-
-    if ((uint64_t) fileInformation.size < offset + size) {
-        size = fileInformation.size - offset;
-    }
-
-    fileInformationManager.read(fileDescriptor, size, offset, buf);
+    size = fileInformationManager.read(fileDescriptor, size, offset, buf);
 
     RETURN((int) size);
 }
@@ -205,24 +194,7 @@ int MyFS::fuseWrite(const char *path, const char *buf, size_t size, off_t offset
         RETURN(-ENOENT);
     }
 
-    if (offset < 0) {
-        offset = 0;
-    }
-
-    MyFsFileInformation fileInformation = fileInformationManager.getFileInformation(fileDescriptor);
-
-    if (fileInformation.size < offset) {
-        size_t sizeZero = offset - fileInformation.size;
-        char bufferZero[sizeZero];
-        for (int i = 0; i < (int) sizeZero; i++) {
-            bufferZero[i] = 0;
-        }
-
-        int ret = fuseWrite(path, bufferZero, sizeZero, fileInformation.size, fileInfo);
-        if (ret < 0) { RETURN(ret); };
-    }
-
-    fileInformationManager.write(fileDescriptor, size, offset, buf);
+    size = fileInformationManager.write(fileDescriptor, size, offset, buf);
 
     RETURN((int) size);
 }
@@ -238,12 +210,12 @@ int MyFS::fuseRelease(const char *path, struct fuse_file_info *fileInfo) {
 
     openFileHandler.release(openFileHandleDescriptor);
 
-    RETURN(0);
+    RETURN(OK);
 }
 
 int MyFS::fuseOpendir(const char *path, struct fuse_file_info *fileInfo) {
     LOGM();
-    RETURN(0); // always grant access
+    RETURN(OK); // always grant access
 }
 
 int MyFS::fuseReaddir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *fileInfo) {
@@ -267,12 +239,12 @@ int MyFS::fuseReaddir(const char *path, void *buf, fuse_fill_dir_t filler, off_t
         RETURN(-ENOTDIR);
     }
 
-    RETURN(0);
+    RETURN(OK);
 }
 
 int MyFS::fuseReleasedir(const char *path, struct fuse_file_info *fileInfo) {
     LOGM();
-    RETURN(0);
+    RETURN(OK);
 }
 
 int MyFS::fuseCreate(const char *path, mode_t mode, struct fuse_file_info *fileInfo) {
@@ -345,7 +317,7 @@ void *MyFS::fuseInit(struct fuse_conn_info *conn) {
         }
     }
 
-    RETURN(0);
+    RETURN(OK);
 }
 
 // UNUSED

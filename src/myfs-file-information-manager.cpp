@@ -270,27 +270,55 @@ void MyFsFileInformationManager::update(MyFsFileInformation fileInformation) {
     fileInformations[fileDescriptor] = fileInformation;
 }
 
-void MyFsFileInformationManager::read(int fileDescriptor, size_t size, off_t offset, char *buf) {
+size_t MyFsFileInformationManager::read(int fileDescriptor, size_t size, off_t offset, char *buf) {
     MyFsFileInformation fileInformation = getFileInformation(fileDescriptor);
+
+    if (offset < 0) {
+        offset = 0;
+    }
+
+    if (fileInformation.size <= offset) {
+        return 0; // EOF
+    }
+
+    if ((uint64_t) fileInformation.size < offset + size) {
+        size = fileInformation.size - offset;
+    }
 
     fileInformation.atime = time(nullptr);
     memcpy(buf, fileInformation.data + offset, size);
     update(fileInformation);
+
+    return size;
 }
 
-void MyFsFileInformationManager::write(int fileDescriptor, size_t size, off_t offset, const char *buf) {
+size_t MyFsFileInformationManager::write(int fileDescriptor, size_t size, off_t offset, const char *buf) {
+    if (offset < 0) {
+        offset = 0;
+    }
+
     MyFsFileInformation fileInformation = getFileInformation(fileDescriptor);
 
-    time_t currentTime = time(nullptr);
-    fileInformation.atime = currentTime;
-    fileInformation.mtime = currentTime;
+    if (fileInformation.size < offset) {
+        size_t sizeZero = offset - fileInformation.size;
+        char bufferZero[sizeZero];
+        for (int i = 0; i < (int) sizeZero; i++) {
+            bufferZero[i] = 0;
+        }
+
+        write(fileDescriptor, sizeZero, fileInformation.size, bufferZero);
+    }
 
     if ((uint64_t) fileInformation.size < offset + size) {
         fileInformation.size = offset + size;
     }
 
     fileInformation.data = (char *) realloc(fileInformation.data, fileInformation.size);
+    time_t currentTime = time(nullptr);
+    fileInformation.atime = currentTime;
+    fileInformation.mtime = currentTime;
     memcpy(fileInformation.data + offset, buf, size);
-
     update(fileInformation);
+
+    return size;
 }
