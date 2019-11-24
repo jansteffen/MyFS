@@ -247,6 +247,35 @@ int MyFS::fuseReleasedir(const char *path, struct fuse_file_info *fileInfo) {
     RETURN(OK);
 }
 
+int MyFS::fuseRename(const char *path, const char *newpath) {
+    LOGM();
+
+    const char *_old = path;
+    if (*_old == '/' && strlen(_old) > 1) {
+        _old++;
+    }
+    const char *_new = newpath;
+    if (*_new == '/' && strlen(_new) > 1) {
+        _new++;
+    }
+
+    if (strlen(_new) > NAME_LENGTH) {
+        RETURN(-ENAMETOOLONG);
+    }
+
+    if (!fileInformationManager.fileInformationExists(_old)) {
+        RETURN(-ENONET);
+    }
+
+    LOGF("renaming %s to %s\n", _old, _new);
+
+    fileInformationManager.rename(_old, _new);
+    MyFsFileInformation fileInformation = fileInformationManager.getFileInformation(_old);
+    LOGF("new name %s\n", fileInformation.name);
+
+    RETURN(OK);
+}
+
 int MyFS::fuseCreate(const char *path, mode_t mode, struct fuse_file_info *fileInfo) {
     LOGM();
 
@@ -388,11 +417,6 @@ int MyFS::fuseRmdir(const char *path) {
 
 // UNUSED
 int MyFS::fuseSymlink(const char *path, const char *link) {
-    LOGM();
-    return 0;
-}
-
-int MyFS::fuseRename(const char *path, const char *newpath) {
     LOGM();
     return 0;
 }

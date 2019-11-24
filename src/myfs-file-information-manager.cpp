@@ -53,6 +53,14 @@ void MyFsFileInformationManager::truncateFileData(int fileDescriptor, off_t size
     fileInformations[fileDescriptor].data = (char *)(realloc(fileInformations[fileDescriptor].data, size));
 }
 
+void MyFsFileInformationManager::recalculateCurrentDirectory(int fileDescriptor, size_t newSize) {
+    MyFsFileInformation oldFileInformation = getFileInformation(fileDescriptor);
+    if (oldFileInformation.size != (off_t) newSize) {
+        CURRENT_DIR_INFORMATION.size -= oldFileInformation.size;
+        CURRENT_DIR_INFORMATION.size += newSize;
+    }
+}
+
 MyFsFileAccessMode MyFsFileInformationManager::getUserAccess(int fileDescriptor, int flags) {
     MyFsFileInformation fileInformation = fileInformations[fileDescriptor];
     MyFsFileAccessMode accessMode = {};
@@ -264,9 +272,7 @@ bool MyFsFileInformationManager::isAccessed(const char *fileName, int flags) {
 
 void MyFsFileInformationManager::update(MyFsFileInformation fileInformation) {
     int fileDescriptor = getFileDescriptor(fileInformation.name);
-    MyFsFileInformation oldFileInformation = getFileInformation(fileDescriptor);
-    CURRENT_DIR_INFORMATION.size -= oldFileInformation.size;
-    CURRENT_DIR_INFORMATION.size += fileInformation.size;
+    recalculateCurrentDirectory(fileDescriptor, fileInformation.size);
     fileInformations[fileDescriptor] = fileInformation;
 }
 
@@ -321,4 +327,11 @@ size_t MyFsFileInformationManager::write(int fileDescriptor, size_t size, off_t 
     update(fileInformation);
 
     return size;
+}
+
+void MyFsFileInformationManager::rename(const char *oldName, const char *newName) {
+    MyFsFileInformation fileInformation = getFileInformation(oldName);
+    int fileDescriptor = getFileDescriptor(oldName);
+    strcpy(fileInformation.name, newName);
+    fileInformations[fileDescriptor] = fileInformation;
 }

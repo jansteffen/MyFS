@@ -20,16 +20,13 @@ private:
     void changeFileSize(int fileDescriptor, off_t size);
     void truncateFileData(int fileDescriptor, off_t size);
 
+    void recalculateCurrentDirectory(int fileDescriptor, size_t newSize);
+
     MyFsFileAccessMode getUserAccess(int fileDescriptor, int flags);
-
     bool isUserAccessed(int fileDescriptor, int flags);
-
     MyFsFileAccessMode getGroupAccess(int fileDescriptor, int flags);
-
     bool isGroupAccessed(int fileDescriptor, int flags);
-
     MyFsFileAccessMode getOtherAccess(int fileDescriptor, int flags);
-
     bool isOtherAccessed(int fileDescriptor, int flags);
 
 public:
@@ -40,10 +37,8 @@ public:
 
     int getFileDescriptor(const char* fileName);
     bool fileInformationExists(const char* fileName);
-
     bool fileInformationExists(int fileDescriptor);
     MyFsFileInformation getFileInformation(const char* fileName);
-
     MyFsFileInformation getFileInformation(int fileDescriptor);
     struct stat getStat(const char* fileName);
 
@@ -53,16 +48,13 @@ public:
     void truncateFile(const char* fileName, off_t size);
 
     bool isAccessed(const char *fileName, int flags);
-
     MyFsFileAccessMode getAccess(const char *fileName, int flags);
 
     void update(MyFsFileInformation fileInformation);
-
     size_t read(int fileDescriptor, size_t size, off_t offset, char *buf);
-
     size_t write(int fileDescriptor, size_t size, off_t offset, const char *buf);
 
-
+    void rename(const char *oldName, const char *newName);
 };
 
 #endif //MYFS_MYFS_FILE_INFORMATION_MANAGER_H
