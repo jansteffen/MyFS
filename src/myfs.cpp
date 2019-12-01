@@ -315,7 +315,8 @@ void *MyFS::fuseInit(struct fuse_conn_info *conn) {
             auto *fileInformations = new MyFsFileInformation[NUM_DIR_ENTRIES];
             auto *openFileHandles = new MyFsOpenFileHandle[NUM_OPEN_FILES];
 
-            fileInformationManager.init(fileInformations);
+            fileInformationManager.set(fileInformations);
+            fileInformationManager.init();
             openFileHandler.init(openFileHandles);
 
         } else {

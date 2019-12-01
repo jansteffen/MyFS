@@ -155,9 +155,7 @@ bool MyFsFileInformationManager::isOtherAccessed(int fileDescriptor, int flags) 
 }
 
 /* PUBLIC */
-void MyFsFileInformationManager::init(MyFsFileInformation* fileInformations) {
-    this->fileInformations = fileInformations;
-
+void MyFsFileInformationManager::init() {
     // INITIALIZE ALL FILE INFORMATIONS
     for (int i = 0; i < NUM_DIR_ENTRIES; i++) {
         initFileInformation(i);
@@ -174,7 +172,6 @@ void MyFsFileInformationManager::init(MyFsFileInformation* fileInformations) {
     CURRENT_DIR_INFORMATION.mtime = currentTime; // The last "modification of the file/directory is right now
     CURRENT_DIR_INFORMATION.nlink = 2; // Why "two" hardlinks instead of "one"? The answer is here: http://unix.stackexchange.com/a/101536
 }
-
 
 bool MyFsFileInformationManager::fileInformationExists(int fileDescriptor) {
     return fileInformations[fileDescriptor].size != IS_FREE;
@@ -334,4 +331,12 @@ void MyFsFileInformationManager::rename(const char *oldName, const char *newName
     int fileDescriptor = getFileDescriptor(oldName);
     strcpy(fileInformation.name, newName);
     fileInformations[fileDescriptor] = fileInformation;
+}
+
+MyFsFileInformation *MyFsFileInformationManager::getFileInformations() {
+    return this->fileInformations;
+}
+
+void MyFsFileInformationManager::set(MyFsFileInformation* fileInformations) {
+    this->fileInformations = fileInformations;
 }

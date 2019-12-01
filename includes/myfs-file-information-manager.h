@@ -10,8 +10,6 @@
 class MyFsFileInformationManager {
 private:
     MyFsFileInformation * fileInformations;
-    static const int IS_FREE = -1;
-    static const int DOES_NOT_EXIST = -1;
     void initFileInformation(int fileDescriptor);
     bool fileNameIsEqualTo(int fileDescriptor, const char* name);
     int getFreeFileDescriptor();
@@ -33,7 +31,9 @@ public:
     MyFsFileInformationManager();
     ~MyFsFileInformationManager();
 
-    void init(MyFsFileInformation* fileInformations);
+    void set(MyFsFileInformation* fileInformations);
+    void init();
+    MyFsFileInformation* getFileInformations();
 
     int getFileDescriptor(const char* fileName);
     bool fileInformationExists(const char* fileName);
@@ -53,7 +53,6 @@ public:
     void update(MyFsFileInformation fileInformation);
     size_t read(int fileDescriptor, size_t size, off_t offset, char *buf);
     size_t write(int fileDescriptor, size_t size, off_t offset, const char *buf);
-
     void rename(const char *oldName, const char *newName);
 };
 

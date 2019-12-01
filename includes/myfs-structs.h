@@ -16,6 +16,9 @@
 
 #include "myfs-constants.h"
 
+static const int IS_FREE = -1;
+static const int DOES_NOT_EXIST = -1;
+
 typedef struct {
     char name[NAME_LENGTH];
     off_t size; // This specifies the size of a regular file in bytes. For files that are really devices this field isn’t usually meaningful. For symbolic links this specifies the length of the file name the link refers to.
