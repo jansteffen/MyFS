@@ -29,10 +29,11 @@ public:
     static MyFS *Instance();
     
     // TODO: Add attributes of your file system here
-    MyFsOpenFileHandler openFileHandler;
-    MyFsFileInformationManager fileInformationManager;
+    MyFsOpenFileHandler* openFileHandler;
+    MyFsFileInformationManager* fileInformationManager;
 
     MyFS();
+    MyFS(bool inMemoryFs);
     ~MyFS();
     
     // --- Methods called by FUSE ---
@@ -76,7 +77,7 @@ public:
     void fuseDestroy();
     
     // TODO: Add methods of your file system here
-    
+    int initInMemory();
 };
 
 #endif /* myfs_h */

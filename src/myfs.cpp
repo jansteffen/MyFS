@@ -66,6 +66,11 @@ MyFS::MyFS() {
     this->logFile = stderr;
 }
 
+MyFS::MyFS(bool inMemoryFs) {
+    this->logFile = stderr;
+    this->inMemoryFs = inMemoryFs;
+}
+
 MyFS::~MyFS() {
 
 }
@@ -76,11 +81,11 @@ int MyFS::fuseGetattr(const char *path, struct stat *statbuf) {
     const char *fileName = GET_FILE_NAME(path);
     LOGF("\tAttributes of %s requested\n", fileName);
 
-    if (!fileInformationManager.fileInformationExists(fileName)) {
+    if (!fileInformationManager->fileInformationExists(fileName)) {
         RETURN(-ENOENT)
     }
 
-    *statbuf = fileInformationManager.getStat(fileName);
+    *statbuf = fileInformationManager->getStat(fileName);
 
     RETURN(OK)
 }
@@ -89,15 +94,15 @@ int MyFS::fuseMknod(const char *path, mode_t mode, dev_t dev) {
     LOGM();
 
     const char *fileName = GET_FILE_NAME(path);
-    if (fileInformationManager.fileInformationExists(fileName)) {
+    if (fileInformationManager->fileInformationExists(fileName)) {
         RETURN(-EEXIST);
     }
 
-    if (!fileInformationManager.hasFreeSpace()) {
+    if (!fileInformationManager->hasFreeSpace()) {
         RETURN(-ENOSPC);
     }
 
-    fileInformationManager.createFile(fileName, mode);
+    fileInformationManager->createFile(fileName, mode);
 
     RETURN(OK);
 }
@@ -107,11 +112,11 @@ int MyFS::fuseUnlink(const char *path) {
 
     const char *fileName = GET_FILE_NAME(path);
 
-    if (!fileInformationManager.fileInformationExists(fileName)) {
+    if (!fileInformationManager->fileInformationExists(fileName)) {
         RETURN(-ENOENT)
     }
 
-    fileInformationManager.deleteFile(fileName);
+    fileInformationManager->deleteFile(fileName);
 
     RETURN(OK);
 }
@@ -121,37 +126,38 @@ int MyFS::fuseTruncate(const char *path, off_t newSize) {
 
     const char *fileName = GET_FILE_NAME(path);
 
-    if (!fileInformationManager.fileInformationExists(fileName)) {
+    if (!fileInformationManager->fileInformationExists(fileName)) {
         RETURN(-ENOENT)
     }
 
-    fileInformationManager.truncateFile(fileName, newSize);
+    fileInformationManager->truncateFile(fileName, newSize);
 
     RETURN(OK);
 }
 
 int MyFS::fuseOpen(const char *path, struct fuse_file_info *fileInfo) {
     LOGM();
+    LOGF("--> Trying to open %s\n", path);
 
     const char *fileName = GET_FILE_NAME(path);
 
-    if (!fileInformationManager.fileInformationExists(fileName)) {
+    if (!fileInformationManager->fileInformationExists(fileName)) {
         RETURN(-ENOENT)
     }
 
-    if (!openFileHandler.hasFreeSpace()) {
+    if (!openFileHandler->hasFreeSpace()) {
         RETURN(-EMFILE);
     }
 
-    LOGF("FLAGS: %d", fileInfo->flags);
+    LOGF("ACCESS FLAGS: %d", fileInfo->flags);
 
-    if (!fileInformationManager.isAccessed(fileName, fileInfo->flags)) {
+    if (!this->inMemoryFs && !fileInformationManager->isAccessed(fileName, fileInfo->flags)) {
         RETURN(-EACCES);
     }
 
-    MyFsFileAccessMode accessMode = fileInformationManager.getAccess(fileName, fileInfo->flags);
-    int fileDescriptor = fileInformationManager.getFileDescriptor(fileName);
-    int openFileHandleDescriptor = openFileHandler.openFile(fileDescriptor, accessMode);
+    MyFsFileAccessMode accessMode = fileInformationManager->getAccess(fileName, fileInfo->flags);
+    int fileDescriptor = fileInformationManager->getFileDescriptor(fileName);
+    int openFileHandleDescriptor = openFileHandler->openFile(fileDescriptor, accessMode);
     fileInfo->fh = openFileHandleDescriptor;
 
     RETURN(OK);
@@ -159,21 +165,23 @@ int MyFS::fuseOpen(const char *path, struct fuse_file_info *fileInfo) {
 
 int MyFS::fuseRead(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fileInfo) {
     LOGM();
-    LOGF("--> Trying to read %s, %lu, %lu\n", path, (unsigned long) offset, size);
+    LOGF("--> Trying to read %s with size %lu and offset %lu\n", path, (unsigned long) offset, size);
 
     int openFileHandleDescriptor = fileInfo->fh;
-    if (!openFileHandler.isValidOpenFileHandle(openFileHandleDescriptor) ||
-        !openFileHandler.isOpen(openFileHandleDescriptor) ||
-        !openFileHandler.isRead(openFileHandleDescriptor)) {
+    if (!openFileHandler->isValidOpenFileHandle(openFileHandleDescriptor) ||
+        !openFileHandler->isOpen(openFileHandleDescriptor)) {
+        RETURN(-EBADF);
+    }
+    if (!this->inMemoryFs && !openFileHandler->isRead(openFileHandleDescriptor)) {
         RETURN(-EBADF);
     }
 
-    int fileDescriptor = openFileHandler.getFileDescriptor(openFileHandleDescriptor);
-    if (!fileInformationManager.fileInformationExists(fileDescriptor)) {
+    int fileDescriptor = openFileHandler->getFileDescriptor(openFileHandleDescriptor);
+    if (!fileInformationManager->fileInformationExists(fileDescriptor)) {
         RETURN(-ENOENT);
     }
 
-    size = fileInformationManager.read(fileDescriptor, size, offset, buf);
+    size = fileInformationManager->read(fileDescriptor, size, offset, buf);
 
     RETURN((int) size);
 }
@@ -183,32 +191,36 @@ int MyFS::fuseWrite(const char *path, const char *buf, size_t size, off_t offset
     LOGF("--> Trying to write %s with size %lu and offset %lu\n", buf, size, (unsigned long) offset);
 
     int openFileHandleDescriptor = fileInfo->fh;
-    if (!openFileHandler.isValidOpenFileHandle(openFileHandleDescriptor) ||
-        !openFileHandler.isOpen(openFileHandleDescriptor) ||
-        !openFileHandler.isWrite(openFileHandleDescriptor)) {
+    if (!openFileHandler->isValidOpenFileHandle(openFileHandleDescriptor) ||
+        !openFileHandler->isOpen(openFileHandleDescriptor)) {
         RETURN(-EBADF);
     }
 
-    int fileDescriptor = openFileHandler.getFileDescriptor(openFileHandleDescriptor);
-    if (!fileInformationManager.fileInformationExists(fileDescriptor)) {
+    if(!this->inMemoryFs && !openFileHandler->isWrite(openFileHandleDescriptor)) {
+        RETURN(-EBADF);
+    }
+
+    int fileDescriptor = openFileHandler->getFileDescriptor(openFileHandleDescriptor);
+    if (!fileInformationManager->fileInformationExists(fileDescriptor)) {
         RETURN(-ENOENT);
     }
 
-    size = fileInformationManager.write(fileDescriptor, size, offset, buf);
+    size = fileInformationManager->write(fileDescriptor, size, offset, buf);
 
     RETURN((int) size);
 }
 
 int MyFS::fuseRelease(const char *path, struct fuse_file_info *fileInfo) {
     LOGM();
+    LOGF("--> Trying to release %s\n", path);
 
     int openFileHandleDescriptor = fileInfo->fh;
-    if (!openFileHandler.isValidOpenFileHandle(openFileHandleDescriptor) ||
-        !openFileHandler.isOpen(openFileHandleDescriptor)) {
+    if (!openFileHandler->isValidOpenFileHandle(openFileHandleDescriptor) ||
+        !openFileHandler->isOpen(openFileHandleDescriptor)) {
         RETURN(-EBADF);
     }
 
-    openFileHandler.release(openFileHandleDescriptor);
+    openFileHandler->release(openFileHandleDescriptor);
 
     RETURN(OK);
 }
@@ -218,20 +230,21 @@ int MyFS::fuseOpendir(const char *path, struct fuse_file_info *fileInfo) {
     RETURN(OK); // always grant access
 }
 
-int MyFS::fuseReaddir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *fileInfo) {
+int
+MyFS::fuseReaddir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *fileInfo) {
     LOGM();
     LOGF("--> Getting The List of Files of %s\n", path);
 
     // Check if path is directory
     if (strcmp("/", path) == 0) {
         for (int i = 0; i < NUM_DIR_ENTRIES; i++) {
-            if (fileInformationManager.fileInformationExists(i)) {
+            if (fileInformationManager->fileInformationExists(i)) {
                 struct stat s = {};
                 LOGF("--> Getting attributes of File %s at index %d\n",
-                     fileInformationManager.getFileInformation(i).name, i);
+                     fileInformationManager->getFileInformation(i).name, i);
 
-                fuseGetattr(fileInformationManager.getFileInformation(i).name, &s);
-                filler(buf, fileInformationManager.getFileInformation(i).name, &s, 0);
+                fuseGetattr(fileInformationManager->getFileInformation(i).name, &s);
+                filler(buf, fileInformationManager->getFileInformation(i).name, &s, 0);
             }
         }
         filler(buf, "..", nullptr, 0);
@@ -263,14 +276,14 @@ int MyFS::fuseRename(const char *path, const char *newpath) {
         RETURN(-ENAMETOOLONG);
     }
 
-    if (!fileInformationManager.fileInformationExists(_old)) {
+    if (!fileInformationManager->fileInformationExists(_old)) {
         RETURN(-ENONET);
     }
 
     LOGF("renaming %s to %s\n", _old, _new);
 
-    fileInformationManager.rename(_old, _new);
-    MyFsFileInformation fileInformation = fileInformationManager.getFileInformation(_old);
+    fileInformationManager->rename(_old, _new);
+    MyFsFileInformation fileInformation = fileInformationManager->getFileInformation(_old);
     LOGF("new name %s\n", fileInformation.name);
 
     RETURN(OK);
@@ -290,7 +303,8 @@ int MyFS::fuseCreate(const char *path, mode_t mode, struct fuse_file_info *fileI
 
 void MyFS::fuseDestroy() {
     LOGM();
-    // We don't need to do anything as the file information manager and the open file handler get destroyed anyways.
+    delete fileInformationManager;
+    delete openFileHandler;
 }
 
 void *MyFS::fuseInit(struct fuse_conn_info *conn) {
@@ -311,14 +325,7 @@ void *MyFS::fuseInit(struct fuse_conn_info *conn) {
         this->inMemoryFs = (((MyFsInfo *) fuse_get_context()->private_data)->inMemoryFs == 1);
 
         if (this->inMemoryFs) {
-            LOG("Using in-memory mode");
-            auto *fileInformations = new MyFsFileInformation[NUM_DIR_ENTRIES];
-            auto *openFileHandles = new MyFsOpenFileHandle[NUM_OPEN_FILES];
-
-            fileInformationManager.set(fileInformations);
-            fileInformationManager.init();
-            openFileHandler.init(openFileHandles);
-
+            initInMemory();
         } else {
             LOGF("Container file name: %s", ((MyFsInfo *) fuse_get_context()->private_data)->contFile);
 
@@ -348,6 +355,17 @@ void *MyFS::fuseInit(struct fuse_conn_info *conn) {
     }
 
     RETURN(OK);
+}
+
+int MyFS::initInMemory() {
+    LOG("Using in-memory mode");
+    auto *fileInformations = new MyFsFileInformation[NUM_DIR_ENTRIES];
+    auto *openFileHandles = new MyFsOpenFileHandle[NUM_OPEN_FILES];
+
+    fileInformationManager = new MyFsFileInformationManager(fileInformations);
+    fileInformationManager->init();
+    openFileHandler = new MyFsOpenFileHandler(openFileHandles);
+    openFileHandler->init();
 }
 
 // UNUSED

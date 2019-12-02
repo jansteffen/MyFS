@@ -16,25 +16,17 @@ private:
     int getFreeOpenFileHandle();
 
 public:
-    MyFsOpenFileHandler();
+    MyFsOpenFileHandler(MyFsOpenFileHandle * openFileHandles);
     ~MyFsOpenFileHandler();
 
-    void init(MyFsOpenFileHandle * openFileHandles);
-
+    void init();
     bool hasFreeSpace();
-
     int openFile(int fileDescriptor, MyFsFileAccessMode accessMode);
-
     bool isValidOpenFileHandle(int openFileHandleDescriptor);
-
     bool isOpen(int openFileHandleDescriptor);
-
     bool isRead(int openFileHandleDescriptor);
-
     bool isWrite(int openFileHandleDescriptor);
-
     int getFileDescriptor(int openFileHandleDescriptor);
-
     void release(int openFileHandleDescriptor);
 };
 

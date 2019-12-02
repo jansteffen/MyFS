@@ -9,7 +9,9 @@
 #include <fcntl.h>
 #include "myfs-file-information-manager.h"
 
-MyFsFileInformationManager::MyFsFileInformationManager() = default;
+MyFsFileInformationManager::MyFsFileInformationManager(MyFsFileInformation* fileInformations) {
+    this->fileInformations = fileInformations;
+}
 
 MyFsFileInformationManager::~MyFsFileInformationManager() {
     delete[] this->fileInformations;
@@ -303,13 +305,13 @@ size_t MyFsFileInformationManager::write(int fileDescriptor, size_t size, off_t 
     MyFsFileInformation fileInformation = getFileInformation(fileDescriptor);
 
     if (fileInformation.size < offset) {
-        size_t sizeZero = offset - fileInformation.size;
-        char bufferZero[sizeZero];
-        for (int i = 0; i < (int) sizeZero; i++) {
-            bufferZero[i] = 0;
+        size_t gapSize = offset - fileInformation.size;
+        char buffer[gapSize];
+        for (int i = 0; i < (int) gapSize; i++) {
+            buffer[i] = char(0);
         }
 
-        write(fileDescriptor, sizeZero, fileInformation.size, bufferZero);
+        write(fileDescriptor, gapSize, fileInformation.size, buffer);
     }
 
     if ((uint64_t) fileInformation.size < offset + size) {
@@ -335,8 +337,4 @@ void MyFsFileInformationManager::rename(const char *oldName, const char *newName
 
 MyFsFileInformation *MyFsFileInformationManager::getFileInformations() {
     return this->fileInformations;
-}
-
-void MyFsFileInformationManager::set(MyFsFileInformation* fileInformations) {
-    this->fileInformations = fileInformations;
 }

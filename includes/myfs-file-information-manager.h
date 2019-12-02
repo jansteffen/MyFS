@@ -28,10 +28,9 @@ private:
     bool isOtherAccessed(int fileDescriptor, int flags);
 
 public:
-    MyFsFileInformationManager();
+    MyFsFileInformationManager(MyFsFileInformation* fileInformations);
     ~MyFsFileInformationManager();
 
-    void set(MyFsFileInformation* fileInformations);
     void init();
     MyFsFileInformation* getFileInformations();
 

@@ -12,6 +12,10 @@
 #include "catch.hpp"
 #include "helper.hpp"
 
+#define RW 0666
+#define DEVICE_NUMBERS 0
+#define OK 0
+
 void gen_random(char *s, const int len) {
     static const char alphanum[] =
     "0123456789"
@@ -21,6 +25,36 @@ void gen_random(char *s, const int len) {
     for (int i = 0; i < len; ++i) {
         s[i] = alphanum[rand() % (sizeof(alphanum) - 1)];
     }
+}
+
+void create(MyFS* myfs, const char* fileName) {
+    REQUIRE(myfs->fuseMknod(fileName, RW, DEVICE_NUMBERS) == OK);
+}
+void open(MyFS* myfs, fuse_file_info fileInfo, const char* fileName) {
+    REQUIRE(myfs->fuseOpen(fileName, &fileInfo) == OK);
+}
+void read(MyFS* myfs, fuse_file_info fileInfo, const char* fileName, char* readBuf, size_t size, off_t offset) {
+    REQUIRE(myfs->fuseRead(fileName, readBuf, size, offset,  &fileInfo) == size);
+}
+void write(MyFS* myfs, fuse_file_info fileInfo, const char* fileName, char* writeBuf, size_t size, off_t offset) {
+    REQUIRE(myfs->fuseWrite(fileName, writeBuf, size, offset, &fileInfo) == size);
+}
+void close(MyFS* myfs, fuse_file_info fileInfo, const char* fileName) {
+    REQUIRE(myfs->fuseRelease(fileName, &fileInfo) == OK);
+}
+void open_write_close(MyFS* myfs, fuse_file_info fileInfo, const char* fileName, char* writeBuf, size_t size, off_t offset) {
+    open(myfs, fileInfo, fileName);
+    write(myfs, fileInfo, fileName, writeBuf, size, offset);
+    close(myfs, fileInfo, fileName);
+}
+void open_read_close(MyFS* myfs, fuse_file_info fileInfo, const char* fileName, char* readBuf, size_t size, off_t offset) {
+    open(myfs, fileInfo, fileName);
+    read(myfs, fileInfo, fileName, readBuf, size, offset);
+    close(myfs, fileInfo, fileName);
+}
+
+void truncate(MyFS* myfs, const char* fileName, off_t newSize) {
+    REQUIRE(myfs->fuseTruncate(fileName, newSize) == OK);
 }
 
 void bdWriteRead(BlockDevice *bd, int noBlocks) {

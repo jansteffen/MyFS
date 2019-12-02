@@ -4,15 +4,15 @@
 
 #include "myfs-open-file-handler.h"
 
-MyFsOpenFileHandler::MyFsOpenFileHandler() = default;
+MyFsOpenFileHandler::MyFsOpenFileHandler(MyFsOpenFileHandle * openFileHandles) {
+    this->openFileHandles = openFileHandles;
+};
 
 MyFsOpenFileHandler::~MyFsOpenFileHandler() {
     delete[] this->openFileHandles;
 }
 
-void MyFsOpenFileHandler::init(MyFsOpenFileHandle * openFileHandles) {
-    this->openFileHandles = openFileHandles;
-
+void MyFsOpenFileHandler::init() {
     // INITIALIZE ALL OPEN FILE HANDLES
     for (int i = 0; i < NUM_OPEN_FILES; i++) {
         release(i);
